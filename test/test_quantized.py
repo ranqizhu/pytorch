@@ -273,10 +273,11 @@ class TestQuantizedOps(TestCase):
         mul_out = torch.ops.quantized.mul_out
         mul_relu_out = torch.ops.quantized.mul_relu_out
 
-        A = torch.arange(-25, 25, dtype=torch.float)
-        B = torch.arange(-25, 25, dtype=torch.float)
-        scale = 2.0
-        zero_point = 127
+        A = torch.arange(-255, 255, dtype=torch.float)
+        B = torch.arange(-255, 255, dtype=torch.float)
+
+        scale, zero_point = _calculate_dynamic_qparams(A * B, torch.uint8)
+
         qA = torch.quantize_linear(A, scale=scale, zero_point=zero_point,
                                    dtype=torch.quint8)
         qB = torch.quantize_linear(B, scale=scale, zero_point=zero_point,
@@ -327,15 +328,12 @@ class TestQuantizedOps(TestCase):
         mul_out = torch.ops.quantized.mul_out
         mul_relu_out = torch.ops.quantized.mul_relu_out
 
-        A = torch.arange(-25, 25, dtype=torch.float)
-        B = torch.arange(-25, 25, dtype=torch.float)
-        scale_A = 3.0
-        zero_point_A = 7
-        scale_B = 5.0
-        zero_point_B = 127
+        A = torch.arange(-127, 255, dtype=torch.float)
+        B = torch.arange(-255, 127, dtype=torch.float)
 
-        scale_C = 0.5
-        zero_point_C = 5
+        scale_A, zero_point_A = _calculate_dynamic_qparams(A, torch.uint8)
+        scale_B, zero_point_B = _calculate_dynamic_qparams(B, torch.uint8)
+        scale_C, zero_point_C = _calculate_dynamic_qparams(A * B, torch.uint8)
 
         qA = torch.quantize_linear(A, scale=scale_A, zero_point=zero_point_A,
                                    dtype=torch.quint8)
