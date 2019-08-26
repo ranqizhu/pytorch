@@ -12,6 +12,12 @@ import torch
 _agent = None
 
 
+def _check_initialized():
+    if _agent is None:
+        raise RuntimeError("RPC has not been initialized. "
+                           "Call init_rpc(name) first.")
+
+
 def _collect_worker_names(name, group):
     from . import all_gather
     from . import get_world_size
@@ -59,10 +65,7 @@ def sync_rpc():
     level, if multiple threads are spawned, only one of them should call this
     method at a time.
     """
-    if _agent is None:
-        raise RuntimeError("RPC has not been initialized. "
-                           "Call init_rpc(name) first.")
-
+    _check_initialized()
     _agent.sync()
 
 
@@ -101,6 +104,14 @@ def init_rpc(name, backend='pg'):
         raise RuntimeError("Unrecognized RPC backend ", backend)
 
 
+def get_id(workerName=None):
+    _check_initialized()
+    if workerName:
+        return _agent.get_worker_id(workerName)
+    else:
+        return _agent.get_id()
+
+
 def rpc(to, func, args=None, kwargs=None, async_call=False):
     r"""
     Make an RPC call to run function ``func`` on worker ``to``. By default, it
@@ -109,8 +120,9 @@ def rpc(to, func, args=None, kwargs=None, async_call=False):
     thread-safe.
 
     Arguments:
-        to (str): name of the destination worker.
-        func (callable): any callable function. builtin functions (like torch.add) can be sent over RPC more efficiently.
+        to (int or str): id or name of the destination worker.
+        func (callable): any callable function. builtin functions (like
+                         ``torch.add``) can be sent over RPC more efficiently.
         args (tuple): the argument tuple for the ``func`` invocation.
         kwargs (dict): is a dictionary of keyword arguments for the ``func``
                        invocation.
@@ -161,17 +173,18 @@ def rpc(to, func, args=None, kwargs=None, async_call=False):
         >>> dist.init_rpc("worker1")
         >>> dist.join_rpc()
     """
+    _check_initialized()
     if not callable(func):
         raise TypeError("function should be callable.")
-
-    if _agent is None:
-        raise RuntimeError("RPC has not been initialized. "
-                           "Call init_rpc(name) first.")
 
     qualified_name = torch.jit._find_builtin(func)
 
     args = args if args else ()
     kwargs = kwargs if kwargs else {}
+
+    if isinstance(to, str):
+        to = _agent.get_worker_id(to)
+
     if qualified_name is not None:
         fut = invoke_rpc_builtin(_agent, to, qualified_name, *args, **kwargs)
     else:
