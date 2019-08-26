@@ -967,8 +967,7 @@ graph(%x : Tensor,
             def forward(self, x):
                 return self.conv(x)
 
-        # re-enable later
-        torch._C._jit_set_inline_everything_mode(True)
+        torch._C._jit_set_inline_everything_mode(False)
         m = torch.jit.script(M())
         observer = torch.jit.script(Observer())
         torch._C._jit_pass_constant_propagation(m.graph)
@@ -988,28 +987,12 @@ graph(%x : Tensor,
         FileCheck().check("aten::quantize_linear") \
                    .check_next("aten::int_repr") \
                    .check_next("aten::_dequantize_linear") \
-                   .check("aten::quantize_linear") \
-                   .check_next("aten::int_repr") \
-                   .check_next("aten::_dequantize_linear") \
-                   .check("aten::quantize_linear") \
-                   .check_next("aten::int_repr") \
-                   .check_next("aten::_dequantize_linear") \
-                   .check("aten::conv2d") \
+                   .check("prim::CallMethod[name=\"forward\"]") \
                    .check("aten::quantize_linear") \
                    .check_next("aten::int_repr") \
                    .check_next("aten::_dequantize_linear") \
                    .check("return") \
-                   .run(str(m._c._get_method('forward').graph))
-        # Test for inline
-        # FileCheck().check("aten::quantize_linear") \
-        #            .check_next("aten::int_repr") \
-        #            .check_next("aten::_dequantize_linear") \
-        #            .check("prim::CallMethod[name=\"forward\"]") \
-        #            .check("aten::quantize_linear") \
-        #            .check_next("aten::int_repr") \
-        #            .check_next("aten::_dequantize_linear") \
-        #            .check("return") \
-        #            .run(str(get_forward(m).graph))
+                   .run(str(get_forward(m).graph))
 
     def test_quant_fusion(self):
         input_str = """

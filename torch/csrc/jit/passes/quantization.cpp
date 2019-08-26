@@ -360,6 +360,7 @@ IValue QuantizeHelper::getQParams(Value* v) {
                           "getQParams expects the corresponding observer for ",
                           v->debugName(),
                           " exists.");
+    std::cout << "observer name: " << observer_name.value() << std::endl;
     auto calculate_qparams = observer_module.value().get_method("calculate_qparams");
     IValue qparams = calculate_qparams(std::vector<IValue>());
     return qparams;
@@ -471,6 +472,16 @@ script::Module InsertQuantDeQuant(
 
   for (Value* v : values_to_quantize) {
     if (v->type()->isSubtypeOf(TensorType::get())) {
+      if (v->node()->kind() == prim::CallMethod && v->node()->s(attr::name) == "forward") {
+        auto child_instance = v->node()->inputs()[0];
+        TORCH_INTERNAL_ASSERT(child_instance->node()->kind() == prim::GetAttr, "Child instance should come from GetAttr.");
+        auto child_module_name = child_instance->node()->s(attr::name);
+        if (child_module_name.find("observer_for_") == std::string::npos) {
+          auto child_module = module.find_module(child_module_name);
+          TORCH_INTERNAL_ASSERT(child_module, "InsertQuantDeQuant - Child module " + child_module_name + " does not exist");
+          InsertQuantDeQuant(child_module.value(), "forward");
+        }
+      }
       if (v->node()->kind() == prim::GetAttr && v->node()->s(c10::attr::name) == "bias") {
         qh.quantizeBias(v);
       } else {
